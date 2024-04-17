@@ -86,9 +86,12 @@ func main() {
 					bot.Send(msg)
 					continue
 				}
-				answer := fmt.Sprintf("Сейчас %v°C, ощущается как %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%",
-					currentWeather.Current.TempC, currentWeather.Current.FeelslikeC, fmt.Sprintf("%.1f", currentWeather.Current.WindKph/3.6), currentWeather.Current.Humidity)
+				answer := fmt.Sprintf("Погода в %v:\nСейчас %v°C, ощущается как %v°C\nСкорость ветра %vм/c\nВлажность %v%%\nОсадки %vсм", city[0].LocalNames.Ru,
+					currentWeather.Data.Temperature.Air.C, currentWeather.Data.Temperature.Comfort.C, currentWeather.Data.Wind.Speed.MS,
+					currentWeather.Data.Humidity.Percent, currentWeather.Data.Precipitation.Amount)
+				answer += "\n\n\nПодробнее <a href=\"https://www.gismeteo.ru\">здесь</a>"
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, answer)
+				msg.ParseMode = "HTML"
 				msg.ReplyMarkup = commandKeyboard
 				bot.Send(msg)
 			case "Узнаём погоду на сегодня...":
@@ -99,14 +102,18 @@ func main() {
 					continue
 				}
 				todaysWeather, problem = GisMeteoRequest.CheckTodaysWeather(city)
-				answer := ""
-				for i := 0; i < 24; i += frequency {
-					answer += fmt.Sprintf("В %v:00 ожидается %v°C, ощущается как %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%\n\n", i, //TODO: дождик/осадки
-						todaysWeather.Forecast.Forecastday[0].Hour[i].TempC, todaysWeather.Forecast.Forecastday[0].Hour[i].FeelslikeC,
-						fmt.Sprintf("%.1f", todaysWeather.Forecast.Forecastday[0].Hour[i].WindKph/3.6), todaysWeather.Forecast.Forecastday[0].Hour[i].Humidity)
+				answer := fmt.Sprintf("Погода в %v на сегодня:\n", city[0].LocalNames.Ru)
+				for i, period := range todaysWeather.Data {
+					answer += fmt.Sprintf("В %v:00 ожидается %v°C, ощущается как %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%\nКоличество осадков около %vмм \n\n", i*3, //TODO: дождик/осадки
+						period.Temperature.Air.C, period.Temperature.Comfort.C, period.Wind.Speed.MS, period.Humidity.Percent, period.Precipitation.Amount)
+					if i >= 8 {
+						break
+					}
 				}
+				answer += "\nПодробнее <a href=\"https://www.gismeteo.ru\">здесь</a>"
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, answer)
 				msg.ReplyMarkup = commandKeyboard
+				msg.ParseMode = "HTML"
 				bot.Send(msg)
 			case "Меняем город...":
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Напишите название города")

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 )
 
 type City []struct {
@@ -42,168 +43,194 @@ type City []struct {
 	State   string  `json:"state"`
 }
 type CurrentWeather struct {
-	Location struct {
-		Name           string  `json:"name"`
-		Region         string  `json:"region"`
-		Country        string  `json:"country"`
-		Lat            float64 `json:"lat"`
-		Lon            float64 `json:"lon"`
-		TzID           string  `json:"tz_id"`
-		LocaltimeEpoch int     `json:"localtime_epoch"`
-		Localtime      string  `json:"localtime"`
-	} `json:"location"`
-	Current struct {
-		LastUpdatedEpoch int     `json:"last_updated_epoch"`
-		LastUpdated      string  `json:"last_updated"`
-		TempC            float64 `json:"temp_c"`
-		TempF            float64 `json:"temp_f"`
-		IsDay            int     `json:"is_day"`
-		Condition        struct {
-			Text string `json:"text"`
-			Icon string `json:"icon"`
-			Code int    `json:"code"`
-		} `json:"condition"`
-		WindMph    float64 `json:"wind_mph"`
-		WindKph    float64 `json:"wind_kph"`
-		WindDegree int     `json:"wind_degree"`
-		WindDir    string  `json:"wind_dir"`
-		PressureMb float64 `json:"pressure_mb"`
-		PressureIn float64 `json:"pressure_in"`
-		PrecipMm   float64 `json:"precip_mm"`
-		PrecipIn   float64 `json:"precip_in"`
-		Humidity   int     `json:"humidity"`
-		Cloud      int     `json:"cloud"`
-		FeelslikeC float64 `json:"feelslike_c"`
-		FeelslikeF float64 `json:"feelslike_f"`
-		VisKm      float64 `json:"vis_km"`
-		VisMiles   float64 `json:"vis_miles"`
-		Uv         float64 `json:"uv"`
-		GustMph    float64 `json:"gust_mph"`
-		GustKph    float64 `json:"gust_kph"`
-	} `json:"current"`
+	Data struct {
+		Astro struct {
+			Sun struct {
+				Sunrise time.Time `json:"sunrise"`
+				Sunset  time.Time `json:"sunset"`
+				Polar   any       `json:"polar"`
+			} `json:"sun"`
+			Moon struct {
+				NextFull           time.Time `json:"next_full"`
+				PreviousFull       time.Time `json:"previous_full"`
+				Phase              string    `json:"phase"`
+				PercentIlluminated float64   `json:"percent_illuminated"`
+			} `json:"moon"`
+		} `json:"astro"`
+		Icon struct {
+			IconWeather string `json:"icon-weather"`
+			Emoji       string `json:"emoji"`
+		} `json:"icon"`
+		Kind        string `json:"kind"`
+		Description string `json:"description"`
+		Date        struct {
+			Utc            time.Time `json:"UTC"`
+			Local          time.Time `json:"local"`
+			Unix           int       `json:"unix"`
+			TimeZoneOffset int       `json:"timeZoneOffset"`
+		} `json:"date"`
+		City struct {
+			Name      string  `json:"name"`
+			NameP     string  `json:"nameP"`
+			Latitude  float64 `json:"latitude"`
+			Longitude float64 `json:"longitude"`
+		} `json:"city"`
+		Wind struct {
+			Direction struct {
+				Degree int `json:"degree"`
+				Scale8 int `json:"scale_8"`
+			} `json:"direction"`
+			Speed struct {
+				MS float64 `json:"m_s"`
+			} `json:"speed"`
+			GustSpeed struct {
+				MS float64 `json:"m_s"`
+			} `json:"gust_speed"`
+			AlternateDirection bool `json:"alternate_direction"`
+		} `json:"wind"`
+		Precipitation struct {
+			Type      int `json:"type"`
+			TypeExt   int `json:"type_ext"`
+			Amount    int `json:"amount"`
+			Intensity int `json:"intensity"`
+			Duration  int `json:"duration"`
+		} `json:"precipitation"`
+		Temperature struct {
+			Air struct {
+				C float64 `json:"C"`
+			} `json:"air"`
+			Comfort struct {
+				C float64 `json:"C"`
+			} `json:"comfort"`
+			Water struct {
+				C float64 `json:"C"`
+			} `json:"water"`
+		} `json:"temperature"`
+		Storm struct {
+			Cape       float64 `json:"cape"`
+			Prediction bool    `json:"prediction"`
+		} `json:"storm"`
+		Cloudiness struct {
+			Percent int `json:"percent"`
+			Scale3  int `json:"scale_3"`
+		} `json:"cloudiness"`
+		Visibility struct {
+			Horizontal struct {
+				M int `json:"m"`
+			} `json:"horizontal"`
+		} `json:"visibility"`
+		Humidity struct {
+			Percent  int `json:"percent"`
+			DewPoint struct {
+				C float64 `json:"C"`
+			} `json:"dew_point"`
+		} `json:"humidity"`
+		Pressure struct {
+			MmHgAtm int `json:"mm_hg_atm"`
+		} `json:"pressure"`
+	} `json:"data"`
+	Jsonapi struct {
+		Version string `json:"version"`
+	} `json:"jsonapi"`
+	Meta struct {
+		Status     bool `json:"status"`
+		StatusCode int  `json:"status_code"`
+	} `json:"meta"`
 }
 type TodaysWeather struct {
-	Location struct {
-		Name           string  `json:"name"`
-		Region         string  `json:"region"`
-		Country        string  `json:"country"`
-		Lat            float64 `json:"lat"`
-		Lon            float64 `json:"lon"`
-		TzID           string  `json:"tz_id"`
-		LocaltimeEpoch int     `json:"localtime_epoch"`
-		Localtime      string  `json:"localtime"`
-	} `json:"location"`
-	Current struct {
-		LastUpdatedEpoch int     `json:"last_updated_epoch"`
-		LastUpdated      string  `json:"last_updated"`
-		TempC            float64 `json:"temp_c"`
-		TempF            float64 `json:"temp_f"`
-		IsDay            int     `json:"is_day"`
-		Condition        struct {
-			Text string `json:"text"`
-			Icon string `json:"icon"`
-			Code int    `json:"code"`
-		} `json:"condition"`
-		WindMph    float64 `json:"wind_mph"`
-		WindKph    float64 `json:"wind_kph"`
-		WindDegree int     `json:"wind_degree"`
-		WindDir    string  `json:"wind_dir"`
-		PressureMb float64 `json:"pressure_mb"`
-		PressureIn float64 `json:"pressure_in"`
-		PrecipMm   float64 `json:"precip_mm"`
-		PrecipIn   float64 `json:"precip_in"`
-		Humidity   int     `json:"humidity"`
-		Cloud      int     `json:"cloud"`
-		FeelslikeC float64 `json:"feelslike_c"`
-		FeelslikeF float64 `json:"feelslike_f"`
-		VisKm      float64 `json:"vis_km"`
-		VisMiles   float64 `json:"vis_miles"`
-		Uv         float64 `json:"uv"`
-		GustMph    float64 `json:"gust_mph"`
-		GustKph    float64 `json:"gust_kph"`
-	} `json:"current"`
-	Forecast struct {
-		Forecastday []struct {
-			Date      string `json:"date"`
-			DateEpoch int    `json:"date_epoch"`
-			Day       struct {
-				MaxtempC          float64 `json:"maxtemp_c"`
-				MaxtempF          float64 `json:"maxtemp_f"`
-				MintempC          float64 `json:"mintemp_c"`
-				MintempF          float64 `json:"mintemp_f"`
-				AvgtempC          float64 `json:"avgtemp_c"`
-				AvgtempF          float64 `json:"avgtemp_f"`
-				MaxwindMph        float64 `json:"maxwind_mph"`
-				MaxwindKph        float64 `json:"maxwind_kph"`
-				TotalprecipMm     float64 `json:"totalprecip_mm"`
-				TotalprecipIn     float64 `json:"totalprecip_in"`
-				TotalsnowCm       float64 `json:"totalsnow_cm"`
-				AvgvisKm          float64 `json:"avgvis_km"`
-				AvgvisMiles       float64 `json:"avgvis_miles"`
-				Avghumidity       int     `json:"avghumidity"`
-				DailyWillItRain   int     `json:"daily_will_it_rain"`
-				DailyChanceOfRain int     `json:"daily_chance_of_rain"`
-				DailyWillItSnow   int     `json:"daily_will_it_snow"`
-				DailyChanceOfSnow int     `json:"daily_chance_of_snow"`
-				Condition         struct {
-					Text string `json:"text"`
-					Icon string `json:"icon"`
-					Code int    `json:"code"`
-				} `json:"condition"`
-				Uv float64 `json:"uv"`
-			} `json:"day"`
-			Astro struct {
-				Sunrise          string `json:"sunrise"`
-				Sunset           string `json:"sunset"`
-				Moonrise         string `json:"moonrise"`
-				Moonset          string `json:"moonset"`
-				MoonPhase        string `json:"moon_phase"`
-				MoonIllumination int    `json:"moon_illumination"`
-				IsMoonUp         int    `json:"is_moon_up"`
-				IsSunUp          int    `json:"is_sun_up"`
-			} `json:"astro"`
-			Hour []struct {
-				TimeEpoch int     `json:"time_epoch"`
-				Time      string  `json:"time"`
-				TempC     float64 `json:"temp_c"`
-				TempF     float64 `json:"temp_f"`
-				IsDay     int     `json:"is_day"`
-				Condition struct {
-					Text string `json:"text"`
-					Icon string `json:"icon"`
-					Code int    `json:"code"`
-				} `json:"condition"`
-				WindMph      float64 `json:"wind_mph"`
-				WindKph      float64 `json:"wind_kph"`
-				WindDegree   int     `json:"wind_degree"`
-				WindDir      string  `json:"wind_dir"`
-				PressureMb   float64 `json:"pressure_mb"`
-				PressureIn   float64 `json:"pressure_in"`
-				PrecipMm     float64 `json:"precip_mm"`
-				PrecipIn     float64 `json:"precip_in"`
-				SnowCm       float64 `json:"snow_cm"`
-				Humidity     int     `json:"humidity"`
-				Cloud        int     `json:"cloud"`
-				FeelslikeC   float64 `json:"feelslike_c"`
-				FeelslikeF   float64 `json:"feelslike_f"`
-				WindchillC   float64 `json:"windchill_c"`
-				WindchillF   float64 `json:"windchill_f"`
-				HeatindexC   float64 `json:"heatindex_c"`
-				HeatindexF   float64 `json:"heatindex_f"`
-				DewpointC    float64 `json:"dewpoint_c"`
-				DewpointF    float64 `json:"dewpoint_f"`
-				WillItRain   int     `json:"will_it_rain"`
-				ChanceOfRain int     `json:"chance_of_rain"`
-				WillItSnow   int     `json:"will_it_snow"`
-				ChanceOfSnow int     `json:"chance_of_snow"`
-				VisKm        float64 `json:"vis_km"`
-				VisMiles     float64 `json:"vis_miles"`
-				GustMph      float64 `json:"gust_mph"`
-				GustKph      float64 `json:"gust_kph"`
-				Uv           float64 `json:"uv"`
-			} `json:"hour"`
-		} `json:"forecastday"`
-	} `json:"forecast"`
+	Data []struct {
+		Astro struct {
+			Sun struct {
+				Sunrise time.Time `json:"sunrise"`
+				Sunset  time.Time `json:"sunset"`
+				Polar   any       `json:"polar"`
+			} `json:"sun"`
+			Moon struct {
+				NextFull           time.Time `json:"next_full"`
+				PreviousFull       time.Time `json:"previous_full"`
+				Phase              string    `json:"phase"`
+				PercentIlluminated float64   `json:"percent_illuminated"`
+			} `json:"moon"`
+		} `json:"astro"`
+		Icon struct {
+			IconWeather string `json:"icon-weather"`
+			Emoji       string `json:"emoji"`
+		} `json:"icon"`
+		Kind        string `json:"kind"`
+		Description string `json:"description"`
+		Date        struct {
+			Utc            time.Time `json:"UTC"`
+			Local          time.Time `json:"local"`
+			Unix           int       `json:"unix"`
+			TimeZoneOffset int       `json:"timeZoneOffset"`
+		} `json:"date"`
+		City struct {
+			Name      string  `json:"name"`
+			NameP     string  `json:"nameP"`
+			Latitude  float64 `json:"latitude"`
+			Longitude float64 `json:"longitude"`
+		} `json:"city"`
+		Wind struct {
+			Direction struct {
+				Degree int `json:"degree"`
+				Scale8 int `json:"scale_8"`
+			} `json:"direction"`
+			Speed struct {
+				MS float64 `json:"m_s"`
+			} `json:"speed"`
+			GustSpeed struct {
+				MS float64 `json:"m_s"`
+			} `json:"gust_speed"`
+			AlternateDirection bool `json:"alternate_direction"`
+		} `json:"wind"`
+		Precipitation struct {
+			Type      int     `json:"type"`
+			TypeExt   int     `json:"type_ext"`
+			Amount    float64 `json:"amount"`
+			Intensity int     `json:"intensity"`
+			Duration  int     `json:"duration"`
+		} `json:"precipitation"`
+		Temperature struct {
+			Air struct {
+				C float64 `json:"C"`
+			} `json:"air"`
+			Comfort struct {
+				C float64 `json:"C"`
+			} `json:"comfort"`
+			Water struct {
+				C float64 `json:"C"`
+			} `json:"water"`
+		} `json:"temperature"`
+		Storm struct {
+			Cape       float64 `json:"cape"`
+			Prediction bool    `json:"prediction"`
+		} `json:"storm"`
+		Cloudiness struct {
+			Percent int `json:"percent"`
+			Scale3  int `json:"scale_3"`
+		} `json:"cloudiness"`
+		Visibility struct {
+			Horizontal struct {
+				M int `json:"m"`
+			} `json:"horizontal"`
+		} `json:"visibility"`
+		Humidity struct {
+			Percent  int `json:"percent"`
+			DewPoint struct {
+				C float64 `json:"C"`
+			} `json:"dew_point"`
+		} `json:"humidity"`
+		Pressure struct {
+			MmHgAtm int `json:"mm_hg_atm"`
+		} `json:"pressure"`
+	} `json:"data"`
+	Jsonapi struct {
+		Version string `json:"version"`
+	} `json:"jsonapi"`
+	Meta struct {
+		Status     bool `json:"status"`
+		StatusCode int  `json:"status_code"`
+	} `json:"meta"`
 }
 
 func CheckCurrentWeather(city City) (CurrentWeather, string) {
@@ -211,8 +238,9 @@ func CheckCurrentWeather(city City) (CurrentWeather, string) {
 	if len(city) == 0 {
 		return weather, "Город с таким названием не найден, попробуйте ввести другой."
 	}
-	weatherUrl := fmt.Sprintf("http://api.weatherapi.com/v1/current.json?key=%v&q=%v,%v&aqi=no", ApiTokens.WeatherToken, city[0].Lat, city[0].Lon) //получение погоды на сейчас
+	weatherUrl := fmt.Sprintf("https://api.gismeteo.net/v3/weather/current/?latitude=%v&longitude=%v", city[0].Lat, city[0].Lon) //получение погоды на сейчас
 	weatherReq, err := http.NewRequest("GET", weatherUrl, nil)
+	weatherReq.Header.Add("X-Gismeteo-Token", ApiTokens.GisMeteoToken)
 	CheckForError(err)
 	weatherResponse, err := http.DefaultClient.Do(weatherReq)
 	CheckForError(err)
@@ -227,8 +255,9 @@ func CheckTodaysWeather(city City) (TodaysWeather, string) {
 	if len(city) == 0 {
 		return weather, "Город с таким названием не найден, попробуйте ввести другой."
 	}
-	weatherUrl := fmt.Sprintf("http://api.weatherapi.com/v1/forecast.json?key=%v&q=%v,%v&aqi=no", ApiTokens.WeatherToken, city[0].Lat, city[0].Lon) //получение погоды на сейчас
+	weatherUrl := fmt.Sprintf("https://api.gismeteo.net/v3/weather/forecast/h3/?latitude=%v&longitude=%v", city[0].Lat, city[0].Lon) //получение погоды на сейчас
 	weatherReq, err := http.NewRequest("GET", weatherUrl, nil)
+	weatherReq.Header.Add("X-Gismeteo-Token", ApiTokens.GisMeteoToken)
 	CheckForError(err)
 	weatherResponse, err := http.DefaultClient.Do(weatherReq)
 	CheckForError(err)
