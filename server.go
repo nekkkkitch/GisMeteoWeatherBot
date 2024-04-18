@@ -25,7 +25,6 @@ var currentWeather GisMeteoRequest.CurrentWeather
 var todaysWeather GisMeteoRequest.TodaysWeather
 var waitingForCity bool
 var city GisMeteoRequest.City
-var frequency = 4
 
 func main() {
 	bot, err := tgbotapi.NewBotAPI(ApiTokens.BotToken)
@@ -86,8 +85,8 @@ func main() {
 					bot.Send(msg)
 					continue
 				}
-				answer := fmt.Sprintf("Погода в %v:\nСейчас %v°C, ощущается как %v°C\nСкорость ветра %vм/c\nВлажность %v%%\nОсадки %vсм", city[0].LocalNames.Ru,
-					currentWeather.Data.Temperature.Air.C, currentWeather.Data.Temperature.Comfort.C, currentWeather.Data.Wind.Speed.MS,
+				answer := fmt.Sprintf("Погода в %v:\nСейчас %v°C\nСкорость ветра %vм/c\nВлажность %v%%\nОсадки %vсм", city[0].LocalNames.Ru,
+					currentWeather.Data.Temperature.Air.C, currentWeather.Data.Wind.Speed.MS,
 					currentWeather.Data.Humidity.Percent, currentWeather.Data.Precipitation.Amount)
 				answer += "\n\n\nПодробнее <a href=\"https://www.gismeteo.ru\">здесь</a>"
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, answer)
@@ -104,8 +103,8 @@ func main() {
 				todaysWeather, problem = GisMeteoRequest.CheckTodaysWeather(city)
 				answer := fmt.Sprintf("Погода в %v на сегодня:\n", city[0].LocalNames.Ru)
 				for i, period := range todaysWeather.Data {
-					answer += fmt.Sprintf("В %v:00 ожидается %v°C, ощущается как %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%\nКоличество осадков около %vмм \n\n", i*3, //TODO: дождик/осадки
-						period.Temperature.Air.C, period.Temperature.Comfort.C, period.Wind.Speed.MS, period.Humidity.Percent, period.Precipitation.Amount)
+					answer += fmt.Sprintf("В %v:00 ожидается %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%\nКоличество осадков около %vмм \n\n", i*3,
+						period.Temperature.Air.C, period.Wind.Speed.MS, period.Humidity.Percent, period.Precipitation.Amount)
 					if i >= 8 {
 						break
 					}
@@ -130,3 +129,8 @@ func main() {
 
 	}
 }
+
+//TODO1: Добавить базу данных с пользователями(айди, никнейм, город, ежедневное оповещение о погоде),
+//сегодняшней и нынешней погодой в городах(название города, байты(предположительно, не изменяются в течение дня))
+//TODO2: Добавить возможность присылать координаты заместо города
+//TODO1.5:Сделать проверку погоду на сегодня раз в 24 часа в 00:00 по местному времени

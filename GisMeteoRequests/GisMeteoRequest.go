@@ -280,7 +280,6 @@ func UpdateCity(cityName string) (City, string) {
 	CheckForError(err)
 	err = json.Unmarshal(cityBody, &city)
 	CheckForError(err)
-	fmt.Println(city)
 	return city, ""
 }
 func CheckForError(err error) {
