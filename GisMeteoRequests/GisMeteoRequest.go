@@ -267,6 +267,21 @@ func CheckTodaysWeather(city City) (TodaysWeather, string) {
 	CheckForError(err)
 	return weather, ""
 }
+func CheckIfCityIsReal(cityName string) (City, string) {
+	var city City
+	cityLocationUrl := fmt.Sprintf("http://api.openweathermap.org/geo/1.0/direct?q=%v,643&appid=%v", cityName, ApiTokens.CityCoordsToken) // получение координат по городу
+	cityReq, err := http.NewRequest("GET", cityLocationUrl, nil)
+	if err != nil {
+		return city, "Такого города нет в базе, проверьте правильность ввода или введите другой город."
+	}
+	cityResponse, err := http.DefaultClient.Do(cityReq)
+	CheckForError(err)
+	cityBody, err := io.ReadAll(cityResponse.Body)
+	CheckForError(err)
+	err = json.Unmarshal(cityBody, &city)
+	CheckForError(err)
+	return city, ""
+}
 func UpdateCity(cityName string) (City, string) {
 	var city City
 	cityLocationUrl := fmt.Sprintf("http://api.openweathermap.org/geo/1.0/direct?q=%v,643&appid=%v", cityName, ApiTokens.CityCoordsToken) // получение координат по городу
