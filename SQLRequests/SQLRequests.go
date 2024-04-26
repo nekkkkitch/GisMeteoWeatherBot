@@ -1,7 +1,7 @@
 package SQLRequests
 
 import (
-	GisMeteoRequest "WeatherBot/GisMeteoRequests"
+	"WeatherBot/ApiRequests"
 	ApiTokens "WeatherBot/key"
 	"database/sql"
 	"encoding/json"
@@ -13,23 +13,23 @@ import (
 )
 
 type User struct {
-	ID               int                  `json:"ID"`
-	Username         string               `json:"Username"`
-	ChatID           int                  `json:"ChatID"`
-	City             GisMeteoRequest.City `json:"City"`
-	TimeNotification time.Time            `json:"TimeNotification"`
-	CallsLimit       int                  `json:"CallsLimit"`
-	CallsLeft        int                  `json:"CallsLeft"`
-	HasSub           bool                 `json:"HasSub"`
+	ID               int              `json:"ID"`
+	Username         string           `json:"Username"`
+	ChatID           int              `json:"ChatID"`
+	City             ApiRequests.City `json:"City"`
+	TimeNotification time.Time        `json:"TimeNotification"`
+	CallsLimit       int              `json:"CallsLimit"`
+	CallsLeft        int              `json:"CallsLeft"`
+	HasSub           bool             `json:"HasSub"`
 }
 type City struct {
-	CityName       string                         `json:"CityName"`
-	WeatherToday   GisMeteoRequest.TodaysWeather  `json:"WeatherToday"`
-	WeatherCurrent GisMeteoRequest.CurrentWeather `json:"WeatherCurrent"`
-	Lat            float64                        `json:"Lat"`
-	Lon            float64                        `json:"Lon"`
-	WasUpdated     bool                           `json:"WasUpdated"`
-	TimeZone       int                            `json:"TimeZone"`
+	CityName       string                     `json:"CityName"`
+	WeatherToday   ApiRequests.TodaysWeather  `json:"WeatherToday"`
+	WeatherCurrent ApiRequests.CurrentWeather `json:"WeatherCurrent"`
+	Lat            float64                    `json:"Lat"`
+	Lon            float64                    `json:"Lon"`
+	WasUpdated     bool                       `json:"WasUpdated"`
+	TimeZone       int                        `json:"TimeZone"`
 }
 type TimeZone struct {
 	Status           string      `json:"status"`
@@ -49,14 +49,14 @@ type TimeZone struct {
 	Formatted        string      `json:"formatted"`
 }
 
-func AddCity(city GisMeteoRequest.City) {
+func AddCity(city ApiRequests.City) {
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 	_, err = db.Exec("insert into cities(cityName, Lat, Lon, WasUpdated, TimeZone) values(?, ?, ?, ?, ?)",
-		city[0].Name, city[0].Lat, city[0].Lon, GetTimeZone(city), 1)
+		city[0].Name, city[0].Lat, city[0].Lon, 0, GetTimeZone(city))
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +71,7 @@ func AddUser(username string, chatid int) {
 		panic(err)
 	}
 	defer db.Close()
-	_, err = db.Exec("insert into users(username, chatid, relocationsLeft, hasSub) values(?, ?, 5, 0)",
+	_, err = db.Exec("insert into users(chatid, relocationsLeft, relocationsTries, hasSub) values(?, 5, 5, 0)",
 		username, chatid)
 	if err != nil {
 		panic(err)
@@ -88,7 +88,7 @@ func CheckIfUserExists(chatid int) bool {
 	row.Scan(&exist)
 	return exist
 }
-func CheckIfCityExists(cityName string) bool {
+func CheckIfCityExistsInDB(cityName string) bool {
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
 	if err != nil {
 		panic(err)
@@ -100,25 +100,31 @@ func CheckIfCityExists(cityName string) bool {
 	return exist
 }
 
-// проверяет существование города(возвращает ошибку, если нет) -> проверяет существование города в базе(добавляет, если нет)-> устанавливает город для юзера
-func SetUserCity(chatID int, cityName string) string {
-	city, problem := GisMeteoRequest.CheckIfCityIsReal(cityName) // проверка что такой город существует
-	if problem != "" {
-		return problem
+func TryToSetUserCity(cityName string, chatid int) string {
+	if cityName == GetUserCityName(chatid) {
+		return "Этот город уже указан"
 	}
-	if !CheckIfCityExists(cityName) { // проверка на наличие города в базе
+	if CheckIfCityExistsInDB(cityName) {
+		SetUserCity(cityName, chatid)
+		return "Учпечно"
+	}
+	if city, err := ApiRequests.CheckIfCityIsReal(cityName); err == false {
 		AddCity(city)
+		SetUserCity(cityName, chatid)
+		return "Учпечно"
 	}
+	return "Кажется, этого города не существует..."
+}
+
+func SetUserCity(cityName string, chatid int) {
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
-	_, err = db.Exec("update users set city = ? where chatid = ?", cityName, chatID)
-	if err != nil {
-		panic(err.Error())
+	if !CheckWeatherActuality(cityName) {
+		_, err = db.Exec("update users set city = ? where chatid = ?", cityName, chatid)
 	}
-	return ""
 }
 func CheckWeatherActuality(cityName string) bool {
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
@@ -139,14 +145,44 @@ func CheckWeatherActuality(cityName string) bool {
 	}
 	return a != 0
 }
-func UpdateWeather(chatid int) { //todo: dodelat
-	cityName, problem := GetUserCityName(chatid)
-
+func UpdateWeather(cityName string) {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	var lat, lon float64
+	row, err := db.Query("select lat, lon from cities where cityName = ?", cityName)
+	if err != nil {
+		panic(err)
+	}
+	for row.Next() {
+		err := row.Scan(&lat, &lon)
+		if err != nil {
+			panic(err)
+		}
+	}
+	_, err = db.Exec("update cities set todaysWeather = ? where cityName = ?", ApiRequests.CheckTodaysWeather(lat, lon))
+	if err != nil {
+		panic(err)
+	}
+}
+func SetWeatherActualityTrue(cityName string) {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	_, err = db.Exec("update cities set wasUpdated = 1 where cityName = ?", cityName)
+	if err != nil {
+		panic(err)
+	}
+}
+func SetWeatherActualityFalse() {
+	//
 }
 
 // вызывается в server при попытке запроса погоды, затем, если город указан, апдейтит погоду и возвращает юзеру результат
-// коммент говно надо переосмыслить
-func GetUserCityName(chatid int) (string, string) {
+func GetUserCityName(chatid int) string {
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
 	if err != nil {
 		panic(err)
@@ -163,12 +199,9 @@ func GetUserCityName(chatid int) (string, string) {
 			panic(err)
 		}
 	}
-	if cityName == "" {
-		return "", "Кажется, вы забыли указать свой город. Сделайте это по кнопке ниже, пожалуйста"
-	}
-	return cityName, ""
+	return cityName
 }
-func GetTimeZone(city GisMeteoRequest.City) int {
+func GetTimeZone(city ApiRequests.City) int {
 	timeZoneTime := 0
 	url := fmt.Sprintf("http://api.timezonedb.com/v2.1/get-time-zone?key=%v&format=json&by=position&lat=%v&lng=%v", ApiTokens.TimeZone, city[0].Lat, city[0].Lon)
 	request, err := http.NewRequest("GET", url, nil)
@@ -190,6 +223,26 @@ func GetTimeZone(city GisMeteoRequest.City) int {
 	return timeZoneTime
 }
 
-//todo: обнулять переменную city/wasupdated в 00:00 по местному времени
+//todo: обнулять переменную city/wasupdated в 00:01 по местному времени
 //если пользователь запрашивает данные с city где wasupdate == false(0), то запрашивать нынешнюю погоду в данном городе
 //может быть запретить менять город чаще n раз за месяц
+
+/*
+Список функций, которые надо реализовать(не факт что полный):
+1)+ Проверить, какой город указан у полльзователя(sql запрос)
+2)+ Есть ли город в БД(sql запрос)
+3)+ Установить город пользователю(sql запрос)
+4)+ Проверка реальности города(api request)
+5)+ Добавление нового города в БД(sql запрос)
+6)+ Проверка, что погода обновлена сегодня(sql запрос)
+7)+ Узнать погоду на сегодня(api request)
+8) Проверка, что время == XX:01
+9) Обновление статуса на 0 для городов, у которых 12 ночи по местному времени(sql запрос)
+9.1) Обновление relocationsLeft в начале месяца(не по местному)
+9.2) Обновление relocationsTries в начале дня(не по местному)
+10)+ Узнать местное время в новом(для БД) городе(api request)
+11)+ Проверка на наличие пользователя в бд(при нажатии на /start)(sql запрос)
+12)+ Добавление пользователя в БД(sql запрос)
+13) Уменьшение relocationsLeft при успешной смене города
+13.5) Уменьшение relocationsTries при не успешной смене города
+*/

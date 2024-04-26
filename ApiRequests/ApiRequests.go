@@ -1,4 +1,4 @@
-package GisMeteoRequest
+package ApiRequests
 
 import (
 	ApiTokens "WeatherBot/key"
@@ -233,29 +233,9 @@ type TodaysWeather struct {
 	} `json:"meta"`
 }
 
-func CheckCurrentWeather(city City) (CurrentWeather, string) {
-	var weather CurrentWeather
-	if len(city) == 0 {
-		return weather, "Город с таким названием не найден, попробуйте ввести другой."
-	}
-	weatherUrl := fmt.Sprintf("https://api.gismeteo.net/v3/weather/current/?latitude=%v&longitude=%v", city[0].Lat, city[0].Lon) //получение погоды на сейчас
-	weatherReq, err := http.NewRequest("GET", weatherUrl, nil)
-	weatherReq.Header.Add("X-Gismeteo-Token", ApiTokens.GisMeteoToken)
-	CheckForError(err)
-	weatherResponse, err := http.DefaultClient.Do(weatherReq)
-	CheckForError(err)
-	weatherBody, err := io.ReadAll(weatherResponse.Body)
-	CheckForError(err)
-	err = json.Unmarshal(weatherBody, &weather)
-	CheckForError(err)
-	return weather, ""
-}
-func CheckTodaysWeather(city City) (TodaysWeather, string) {
+func CheckTodaysWeather(lat, lon float64) TodaysWeather {
 	var weather TodaysWeather
-	if len(city) == 0 {
-		return weather, "Город с таким названием не найден, попробуйте ввести другой."
-	}
-	weatherUrl := fmt.Sprintf("https://api.gismeteo.net/v3/weather/forecast/h3/?latitude=%v&longitude=%v", city[0].Lat, city[0].Lon) //получение погоды на сейчас
+	weatherUrl := fmt.Sprintf("https://api.gismeteo.net/v3/weather/forecast/h3/?latitude=%v&longitude=%v", lat, lon) //получение погоды на сейчас
 	weatherReq, err := http.NewRequest("GET", weatherUrl, nil)
 	weatherReq.Header.Add("X-Gismeteo-Token", ApiTokens.GisMeteoToken)
 	CheckForError(err)
@@ -265,14 +245,14 @@ func CheckTodaysWeather(city City) (TodaysWeather, string) {
 	CheckForError(err)
 	err = json.Unmarshal(weatherBody, &weather)
 	CheckForError(err)
-	return weather, ""
+	return weather
 }
-func CheckIfCityIsReal(cityName string) (City, string) {
+func CheckIfCityIsReal(cityName string) (City, bool) {
 	var city City
 	cityLocationUrl := fmt.Sprintf("http://api.openweathermap.org/geo/1.0/direct?q=%v,643&appid=%v", cityName, ApiTokens.CityCoordsToken) // получение координат по городу
 	cityReq, err := http.NewRequest("GET", cityLocationUrl, nil)
 	if err != nil {
-		return city, "Такого города нет в базе, проверьте правильность ввода или введите другой город."
+		return city, true
 	}
 	cityResponse, err := http.DefaultClient.Do(cityReq)
 	CheckForError(err)
@@ -280,7 +260,7 @@ func CheckIfCityIsReal(cityName string) (City, string) {
 	CheckForError(err)
 	err = json.Unmarshal(cityBody, &city)
 	CheckForError(err)
-	return city, ""
+	return city, false
 }
 func UpdateCity(cityName string) (City, string) {
 	var city City
