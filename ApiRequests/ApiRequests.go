@@ -232,6 +232,23 @@ type TodaysWeather struct {
 		StatusCode int  `json:"status_code"`
 	} `json:"meta"`
 }
+type TimeZone struct {
+	Status           string      `json:"status"`
+	Message          string      `json:"message"`
+	CountryCode      string      `json:"countryCode"`
+	CountryName      string      `json:"countryName"`
+	RegionName       interface{} `json:"regionName"`
+	CityName         string      `json:"cityName"`
+	ZoneName         string      `json:"zoneName"`
+	Abbreviation     string      `json:"abbreviation"`
+	GmtOffset        int         `json:"gmtOffset"`
+	Dst              string      `json:"dst"`
+	ZoneStart        int         `json:"zoneStart"`
+	ZoneEnd          interface{} `json:"zoneEnd"`
+	NextAbbreviation interface{} `json:"nextAbbreviation"`
+	Timestamp        int         `json:"timestamp"`
+	Formatted        string      `json:"formatted"`
+}
 
 func CheckTodaysWeather(lat, lon float64) TodaysWeather {
 	var weather TodaysWeather
@@ -260,22 +277,31 @@ func CheckIfCityIsReal(cityName string) (City, bool) {
 	CheckForError(err)
 	err = json.Unmarshal(cityBody, &city)
 	CheckForError(err)
+	if city[0].LocalNames.Ru != cityName {
+		return city, true
+	}
 	return city, false
 }
-func UpdateCity(cityName string) (City, string) {
-	var city City
-	cityLocationUrl := fmt.Sprintf("http://api.openweathermap.org/geo/1.0/direct?q=%v,643&appid=%v", cityName, ApiTokens.CityCoordsToken) // получение координат по городу
-	cityReq, err := http.NewRequest("GET", cityLocationUrl, nil)
+func GetTimeZone(city City) int {
+	timeZoneTime := 0
+	url := fmt.Sprintf("http://api.timezonedb.com/v2.1/get-time-zone?key=%v&format=json&by=position&lat=%v&lng=%v", ApiTokens.TimeZone, city[0].Lat, city[0].Lon)
+	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return city, "Такого города нет в базе, проверьте правильность ввода или введите другой город."
+		log.Panic(err)
 	}
-	cityResponse, err := http.DefaultClient.Do(cityReq)
-	CheckForError(err)
-	cityBody, err := io.ReadAll(cityResponse.Body)
-	CheckForError(err)
-	err = json.Unmarshal(cityBody, &city)
-	CheckForError(err)
-	return city, ""
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		log.Panic(err)
+	}
+	var timeZone TimeZone
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Panic(err)
+	}
+	json.Unmarshal(body, &timeZone)
+	timeZoneTime = timeZone.GmtOffset / 3600
+	fmt.Println(timeZone)
+	return timeZoneTime
 }
 func CheckForError(err error) {
 	if err != nil {
