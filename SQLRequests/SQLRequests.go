@@ -5,6 +5,7 @@ import (
 	ApiTokens "WeatherBot/key"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -20,6 +21,9 @@ type User struct {
 }
 
 func AddCity(city ApiRequests.City) {
+	if CheckIfCityExistsInDB(city[0].LocalNames.Ru) {
+		return
+	}
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
 	if err != nil {
 		panic(err)
@@ -58,12 +62,13 @@ func CheckIfUserExists(chatid int64) bool {
 	return exist
 }
 func CheckIfCityExistsInDB(cityName string) bool {
+	fmt.Print(cityName)
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
-	row := db.QueryRow("select exists(select * from cities where city = ?)", cityName)
+	row := db.QueryRow("select exists(select * from cities where cityName = ?)", cityName)
 	exist := false
 	row.Scan(&exist)
 	return exist
@@ -252,6 +257,7 @@ func GetWeatherJSON(cityName string) ApiRequests.TodaysWeather {
 	return weather
 }
 func SetUserChangeStatus(chatid int64, status int) {
+	fmt.Print(chatid)
 	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
 	if err != nil {
 		panic(err)

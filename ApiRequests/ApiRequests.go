@@ -268,7 +268,7 @@ func CheckIfCityIsReal(cityName string) (City, bool) {
 	var city City
 	cityLocationUrl := fmt.Sprintf("http://api.openweathermap.org/geo/1.0/direct?q=%v,643&appid=%v", cityName, ApiTokens.CityCoordsToken) // получение координат по городу
 	cityReq, err := http.NewRequest("GET", cityLocationUrl, nil)
-	if err != nil {
+	if err != nil || len(city) == 0 {
 		return city, true
 	}
 	cityResponse, err := http.DefaultClient.Do(cityReq)
@@ -277,6 +277,8 @@ func CheckIfCityIsReal(cityName string) (City, bool) {
 	CheckForError(err)
 	err = json.Unmarshal(cityBody, &city)
 	CheckForError(err)
+	fmt.Print(city[0])
+	fmt.Print(cityName)
 	if city[0].LocalNames.Ru != cityName {
 		return city, true
 	}

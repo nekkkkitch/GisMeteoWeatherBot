@@ -35,7 +35,7 @@ func main() {
 		fmt.Println(err)
 	}
 	bot.Debug = true
-
+	go CheckTime()
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
@@ -43,8 +43,8 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
-
 		if update.Message != nil {
+			fmt.Print(update.Message.Chat.ID)
 			if update.Message.IsCommand() {
 				switch update.Message.Command() {
 				case "start":
@@ -64,6 +64,8 @@ func main() {
 							message = "Город с таким названием не найден, перепроверьте его или напишите другое."
 						case "TOWNINDICATED":
 							message = "Этот город уже указан."
+						default:
+							message = "Чёто другое"
 						}
 						msg := tgbotapi.NewMessage(update.Message.Chat.ID, message)
 						msg.ReplyMarkup = cancelCityKeyboard
@@ -71,8 +73,8 @@ func main() {
 					} else {
 						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Город успешно изменён")
 						msg.ReplyMarkup = menuKeyboard
-						bot.Send(msg)
 						SQLRequests.SetUserChangeStatus(update.Message.Chat.ID, 0)
+						bot.Send(msg)
 					}
 				}
 			}
@@ -114,14 +116,17 @@ func main() {
 					bot.Send(msg)
 					break
 				}
-
 				answer := fmt.Sprintf("Погода в %v на сегодня:\n", SQLRequests.GetUserCityName(update.CallbackQuery.Message.Chat.ID))
-				for i, period := range todaysWeather.Data {
-					answer += fmt.Sprintf("В %v:00 ожидается %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%\nКоличество осадков около %vмм \n\n", i*3,
-						period.Temperature.Air.C, period.Wind.Speed.MS, period.Humidity.Percent, period.Precipitation.Amount)
-					if i >= 8 {
+				for _, period := range todaysWeather.Data {
+					if period.Date.Local.Day() < time.Now().Add(time.Minute*time.Duration(period.Date.TimeZoneOffset)).Day() {
+						continue
+					}
+					if period.Date.Local.Day() > time.Now().Add(time.Minute*time.Duration(period.Date.TimeZoneOffset)).Day() {
 						break
 					}
+					answer += fmt.Sprintf("В %v:00 ожидается %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%\nКоличество осадков около %vмм \n\n", period.Date.Local.Hour(),
+						period.Temperature.Air.C, period.Wind.Speed.MS, period.Humidity.Percent, period.Precipitation.Amount)
+
 				}
 				answer += "\nПодробнее <a href=\"https://www.gismeteo.ru\">здесь</a>"
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, answer)
@@ -131,8 +136,8 @@ func main() {
 			case "Меняем город...":
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Напишите название города")
 				msg.ReplyMarkup = cancelCityKeyboard
-				bot.Send(msg)
 				SQLRequests.SetUserChangeStatus(update.CallbackQuery.Message.Chat.ID, 1)
+				bot.Send(msg)
 			case "Отмена":
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Что хотите сделать теперь?")
 				msg.ReplyMarkup = menuKeyboard
@@ -144,20 +149,36 @@ func main() {
 					panic(err)
 				}
 			}
-
 		}
-
 	}
 }
 func CheckTime() {
-	if time.Now().Minute() == 1 {
-		SQLRequests.SetWeatherActualityFalse()
-	}
-	if time.Now().Hour() == 0 {
-		if time.Now().Day() == 1 {
+	timeChecks := make(map[string]bool)
+	timeChecks["actuality"] = false
+	timeChecks["left"] = false
+	timeChecks["tries"] = false
+	for {
+		if time.Now().Minute() == 2 {
+			timeChecks["actuality"] = false
+		}
+		if time.Now().Hour() == 1 {
+			timeChecks["tries"] = false
+		}
+		if time.Now().Day() == 2 {
+			timeChecks["left"] = false
+		}
+		if time.Now().Minute() == 1 && !timeChecks["actuality"] {
+			timeChecks["actuality"] = true
+			SQLRequests.SetWeatherActualityFalse()
+		}
+		if time.Now().Hour() == 0 && !timeChecks["tries"] {
+			timeChecks["tries"] = true
+			SQLRequests.ResetRelocationsTries()
+		}
+		if time.Now().Day() == 1 && !timeChecks["left"] {
+			timeChecks["left"] = true
 			SQLRequests.ResetRelocationsLeft()
 		}
-		SQLRequests.ResetRelocationsTries()
 	}
 }
 func TryToSetUserCity(cityName string, chatid int64) string {
@@ -166,14 +187,13 @@ func TryToSetUserCity(cityName string, chatid int64) string {
 	}
 	if SQLRequests.CheckIfCityExistsInDB(cityName) {
 		SQLRequests.SetUserCity(cityName, chatid)
-		return "Учпечно"
+		return ""
 	}
 	city, err := ApiRequests.CheckIfCityIsReal(cityName)
 	if !err {
 		SQLRequests.AddCity(city)
 		SQLRequests.SetUserCity(cityName, chatid)
-		SQLRequests.SetUserChangeStatus(chatid, 0)
-		return "Учпечно"
+		return ""
 	}
 	return "TOWNNOTEXIST"
 }
@@ -192,3 +212,4 @@ func TryToGetWeather(chatid int64) (ApiRequests.TodaysWeather, string) {
 
 //TODO: Добавить возможность присылать координаты заместо города
 //TODO2: сделать красивенько чтобы сообщения присылались(обновление последнего сообщения)
+//TODO3: добавить проверку, есть ли пользователь в базе
