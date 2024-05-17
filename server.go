@@ -26,11 +26,19 @@ var menuKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 )
 var cancelCityKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Отменить смену города", "Отмена"),
-	))
+		tgbotapi.NewInlineKeyboardButtonData("Отменить смену города", "Отменяем смену города..."),
+	),
+)
+var settingKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Настройка оповещений", "Оповещения"),
+	),
+)
+var bot *tgbotapi.BotAPI
 
 func main() {
-	bot, err := tgbotapi.NewBotAPI(ApiTokens.BotToken)
+	var err error
+	bot, err = tgbotapi.NewBotAPI(ApiTokens.BotToken)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -44,7 +52,6 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
 		if update.Message != nil {
-			fmt.Print(update.Message.Chat.ID)
 			if update.Message.IsCommand() {
 				switch update.Message.Command() {
 				case "start":
@@ -83,6 +90,7 @@ func main() {
 			if _, err := bot.Request(callback); err != nil {
 				panic(err)
 			}
+			fmt.Print(update.CallbackQuery)
 			switch update.CallbackQuery.Data {
 			case "Узнаём погоду...":
 				todaysWeather, problem := TryToGetWeather(update.CallbackQuery.Message.Chat.ID)
@@ -94,14 +102,10 @@ func main() {
 				utc := SQLRequests.GetUserUTC(update.CallbackQuery.Message.Chat.ID)
 				currentHour := time.Now().UTC().Hour()
 				currentHour += utc
-				if currentHour%3 == 1 {
-					currentHour -= 1
-				} else if currentHour%3 == 2 {
-					currentHour += 1
-				}
-				currentWeather := todaysWeather.Data[currentHour]
-				answer := fmt.Sprintf("Погода в %v:\nСейчас %v°C\nСкорость ветра %vм/c\nВлажность %v%%\nОсадки %vмм",
-					SQLRequests.GetUserCityName(update.CallbackQuery.Message.Chat.ID),
+				currentHour -= currentHour % 3
+				currentWeather := todaysWeather.Data[currentHour/3]
+				answer := fmt.Sprintf("Погода %v:\nСейчас %v°C\nСкорость ветра %vм/c\nВлажность %v%%\nОсадки %vмм",
+					currentWeather.City.NameP,
 					currentWeather.Temperature.Air.C, currentWeather.Wind.Speed.MS,
 					currentWeather.Humidity.Percent, currentWeather.Precipitation.Amount)
 				answer += "\n\n\nПодробнее <a href=\"https://www.gismeteo.ru\">здесь</a>"
@@ -116,12 +120,12 @@ func main() {
 					bot.Send(msg)
 					break
 				}
-				answer := fmt.Sprintf("Погода в %v на сегодня:\n", SQLRequests.GetUserCityName(update.CallbackQuery.Message.Chat.ID))
+				answer := fmt.Sprintf("Погода %v на сегодня:\n", todaysWeather.Data[0].City.NameP)
 				for _, period := range todaysWeather.Data {
-					if period.Date.Local.Day() < time.Now().Add(time.Minute*time.Duration(period.Date.TimeZoneOffset)).Day() {
+					if period.Date.Local.Day() < time.Now().UTC().Add(time.Minute*time.Duration(period.Date.TimeZoneOffset)).Day() {
 						continue
 					}
-					if period.Date.Local.Day() > time.Now().Add(time.Minute*time.Duration(period.Date.TimeZoneOffset)).Day() {
+					if period.Date.Local.Day() > time.Now().UTC().Add(time.Minute*time.Duration(period.Date.TimeZoneOffset)).Day() {
 						break
 					}
 					answer += fmt.Sprintf("В %v:00 ожидается %v°C\nСкорость ветра %v метров в секунду\nВлажность %v%%\nКоличество осадков около %vмм \n\n", period.Date.Local.Hour(),
@@ -138,7 +142,7 @@ func main() {
 				msg.ReplyMarkup = cancelCityKeyboard
 				SQLRequests.SetUserChangeStatus(update.CallbackQuery.Message.Chat.ID, 1)
 				bot.Send(msg)
-			case "Отмена":
+			case "Отменяем смену города...":
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, "Что хотите сделать теперь?")
 				msg.ReplyMarkup = menuKeyboard
 				bot.Send(msg)
@@ -158,7 +162,7 @@ func CheckTime() {
 	timeChecks["left"] = false
 	timeChecks["tries"] = false
 	for {
-		if time.Now().Minute() == 2 {
+		if time.Now().Minute() == 1 {
 			timeChecks["actuality"] = false
 		}
 		if time.Now().Hour() == 1 {
@@ -167,7 +171,7 @@ func CheckTime() {
 		if time.Now().Day() == 2 {
 			timeChecks["left"] = false
 		}
-		if time.Now().Minute() == 1 && !timeChecks["actuality"] {
+		if time.Now().Minute() == 0 && !timeChecks["actuality"] {
 			timeChecks["actuality"] = true
 			SQLRequests.SetWeatherActualityFalse()
 		}
@@ -211,5 +215,4 @@ func TryToGetWeather(chatid int64) (ApiRequests.TodaysWeather, string) {
 }
 
 //TODO: Добавить возможность присылать координаты заместо города
-//TODO2: сделать красивенько чтобы сообщения присылались(обновление последнего сообщения)
-//TODO3: добавить проверку, есть ли пользователь в базе
+//TODO2: сделать красивенько чтобы сообщения присылались(обновление последнего сообщения(добавить видимо id message в Users, который будет меняться))

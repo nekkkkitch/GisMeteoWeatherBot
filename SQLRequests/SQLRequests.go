@@ -6,18 +6,28 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type User struct {
-	ID               int              `json:"ID"`
-	Username         string           `json:"Username"`
-	ChatID           int64            `json:"ChatID"`
-	City             ApiRequests.City `json:"City"`
-	TimeNotification time.Time        `json:"TimeNotification"`
-	CallsLimit       int              `json:"CallsLimit"`
-	CallsLeft        int              `json:"CallsLeft"`
-	HasSub           bool             `json:"HasSub"`
+	ID         int              `json:"ID"`
+	Username   string           `json:"Username"`
+	ChatID     int64            `json:"ChatID"`
+	City       ApiRequests.City `json:"City"`
+	CallsLimit int              `json:"CallsLimit"`
+	CallsLeft  int              `json:"CallsLeft"`
+	HasSub     bool             `json:"HasSub"`
+}
+type Notification struct {
+	ID           int
+	chatid       int64
+	weekDays     string
+	time         string
+	number       int
+	wasSentToday bool
+	isChanging   bool
 }
 
 func AddCity(city ApiRequests.City) {
@@ -307,6 +317,185 @@ func GetUserUTC(chatid int64) int {
 	}
 	return utc
 }
+func GetUserChangingNotification(chatid int64) Notification {
+	notification := Notification{}
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	row, err := db.Query("select * from notifications where chatid = ? and isChanging = ?", chatid, true)
+	if err != nil {
+		panic(err)
+	}
+	var i int
+	for row.Next() {
+		err := row.Scan(&notification.ID, &notification.chatid, &notification.weekDays, &notification.time,
+			&notification.number, &notification.wasSentToday, &notification.isChanging)
+		if err != nil {
+			panic(err)
+		}
+		i++
+	}
+	//проверить, если нет изменяемого оповещения
+	return notification
+}
+func GetCurrentNotifications(chatid int64, day int, currentTime time.Time) []Notification { // неправильно - переписать(изменить как находится нужное время и переключить wasSentToday)
+	formattedTime := currentTime.Format("03:04")
+	notifications := []Notification{}
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	row, err := db.Query("select * from notifications where (chatid = ? and weekDays like '%%?%%' and time = ?)", chatid, strconv.Itoa(day), formattedTime)
+	if err != nil {
+		panic(err)
+	}
+	var i int
+	for row.Next() {
+		notifications = append(notifications, Notification{})
+		err := row.Scan(&notifications[i].ID, &notifications[i].chatid, &notifications[i].weekDays, &notifications[i].time,
+			&notifications[i].number, &notifications[i].wasSentToday, &notifications[i].isChanging)
+		if err != nil {
+			panic(err)
+		}
+		i++
+	}
+	return notifications
+}
+func GetNumberOfNotifications(chatid int64) int {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	row, err := db.Query("SELECT count(*) FROM notifications where chatid = ?", chatid)
+	if err != nil {
+		panic(err)
+	}
+	var number int
+	for row.Next() {
+		err := row.Scan(&number)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return number
+}
+func DeleteNotification(chatid int64, number int) {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	_, err = db.Exec("delete from notifications where chatid = ? and number = ?", chatid, number)
+	if err != nil {
+		panic(err)
+	}
+	ChangeNotificationNumbers(chatid, number)
+}
+func ChangeNotificationNumbers(chatid int64, number int) {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	_, err = db.Exec("update notifications set number = (number - 1) where chatid = ? and number > ?", chatid, number)
+	if err != nil {
+		panic(err)
+	}
+}
+func GetMaxNotificationNumber(chatid int64) int {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	row, err := db.Query("SELECT MAX(number) FROM notifications where chatid = ?", chatid)
+	if err != nil {
+		panic(err)
+	}
+	var number int
+	for row.Next() {
+		err := row.Scan(&number)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return number
+}
+func AddNotification(chatid int64) {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	number := GetMaxNotificationNumber(chatid) + 1
+	_, err = db.Exec("insert into notifications(chatid, number) values(?, ?)", chatid, number)
+	if err != nil {
+		panic(err)
+	}
+}
+func GetChangableNotificationWeekdays(chatid int64) string {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	row, err := db.Query("select weekDays from notifications where chatid = ? and isChanging = ?", chatid, true)
+	if err != nil {
+		panic(err)
+	}
+	var weekdays string
+	for row.Next() {
+		err := row.Scan(&weekdays)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return weekdays
+}
+func ChangeNotificationDay(chatid int64, weekdayint int) {
+	weekdays := GetChangableNotificationWeekdays(chatid)
+	weekday := strconv.Itoa(weekdayint)
+	if !strings.Contains(weekdays, weekday) {
+		weekdays += weekday
+	} else {
+		weekdays = weekdays[:strings.Index(weekdays, weekday)] + weekdays[strings.Index(weekdays, weekday)+1:]
+	}
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	_, err = db.Exec("update notifications set weekdays = ? where chatid = ?, isChanging = ?", weekdays, chatid, true)
+	if err != nil {
+		panic(err)
+	}
+}
+func UpdateIsChanging(chatid int64) {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	_, err = db.Exec("update notifications set isChanging = ? where chatid = ? and isChanging = ?", false, chatid, true)
+	if err != nil {
+		panic(err)
+	}
+}
+func SetIsChangingTrue(chatid int64, number int) {
+	db, err := sql.Open("mysql", ApiTokens.SQLOpening)
+	if err != nil {
+		panic(err)
+	}
+	_, err = db.Exec("update notifications set isChanging = ? where chatid = ? and number = ?", true, chatid, number)
+	if err != nil {
+		panic(err)
+	}
+}
+func CheckIfGivenTimeIsOkay(givenTime string) bool {
+	if _, err := time.Parse("03:04", givenTime); err != nil {
+		return false
+	}
+	return true
+}
 
 //todo: обнулять переменную city/wasupdated в 00:01 по местному времени
 //если пользователь запрашивает данные с city где wasupdate == false(0), то запрашивать нынешнюю погоду в данном городе
@@ -330,4 +519,13 @@ func GetUserUTC(chatid int64) int {
 12)+ Добавление пользователя в БД(sql запрос)
 13) Уменьшение relocationsLeft при успешной смене города
 13.5) Уменьшение relocationsTries при не успешной смене города
+14)+ Получение всех notification, нужные на данное время
+15)+ Получение notifications пользователя (надо?)
+15.5)+ Получение количества notifications пользователя
+16)+ Удаление notification под литерой chatid notnumber
+16.5)+ Изменение notnumber на -1 для всех notification где notnumber > notnumber удалённого уведомления
+17)+ Добавление notification с нулевыми значениями
+18)+ Изменение нужного notification
+19) Проверка на наличие уведомления для пользователя на данное время и отправка уведомления
+20) get user id message
 */

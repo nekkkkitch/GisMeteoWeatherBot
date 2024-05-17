@@ -42,100 +42,10 @@ type City []struct {
 	Country string  `json:"country"`
 	State   string  `json:"state"`
 }
-type CurrentWeather struct {
-	Data struct {
-		Astro struct {
-			Sun struct {
-				Sunrise time.Time `json:"sunrise"`
-				Sunset  time.Time `json:"sunset"`
-				Polar   any       `json:"polar"`
-			} `json:"sun"`
-			Moon struct {
-				NextFull           time.Time `json:"next_full"`
-				PreviousFull       time.Time `json:"previous_full"`
-				Phase              string    `json:"phase"`
-				PercentIlluminated float64   `json:"percent_illuminated"`
-			} `json:"moon"`
-		} `json:"astro"`
-		Icon struct {
-			IconWeather string `json:"icon-weather"`
-			Emoji       string `json:"emoji"`
-		} `json:"icon"`
-		Kind        string `json:"kind"`
-		Description string `json:"description"`
-		Date        struct {
-			Utc            time.Time `json:"UTC"`
-			Local          time.Time `json:"local"`
-			Unix           int       `json:"unix"`
-			TimeZoneOffset int       `json:"timeZoneOffset"`
-		} `json:"date"`
-		City struct {
-			Name      string  `json:"name"`
-			NameP     string  `json:"nameP"`
-			Latitude  float64 `json:"latitude"`
-			Longitude float64 `json:"longitude"`
-		} `json:"city"`
-		Wind struct {
-			Direction struct {
-				Degree int `json:"degree"`
-				Scale8 int `json:"scale_8"`
-			} `json:"direction"`
-			Speed struct {
-				MS float64 `json:"m_s"`
-			} `json:"speed"`
-			GustSpeed struct {
-				MS float64 `json:"m_s"`
-			} `json:"gust_speed"`
-			AlternateDirection bool `json:"alternate_direction"`
-		} `json:"wind"`
-		Precipitation struct {
-			Type      int `json:"type"`
-			TypeExt   int `json:"type_ext"`
-			Amount    int `json:"amount"`
-			Intensity int `json:"intensity"`
-			Duration  int `json:"duration"`
-		} `json:"precipitation"`
-		Temperature struct {
-			Air struct {
-				C float64 `json:"C"`
-			} `json:"air"`
-			Comfort struct {
-				C float64 `json:"C"`
-			} `json:"comfort"`
-			Water struct {
-				C float64 `json:"C"`
-			} `json:"water"`
-		} `json:"temperature"`
-		Storm struct {
-			Cape       float64 `json:"cape"`
-			Prediction bool    `json:"prediction"`
-		} `json:"storm"`
-		Cloudiness struct {
-			Percent int `json:"percent"`
-			Scale3  int `json:"scale_3"`
-		} `json:"cloudiness"`
-		Visibility struct {
-			Horizontal struct {
-				M int `json:"m"`
-			} `json:"horizontal"`
-		} `json:"visibility"`
-		Humidity struct {
-			Percent  int `json:"percent"`
-			DewPoint struct {
-				C float64 `json:"C"`
-			} `json:"dew_point"`
-		} `json:"humidity"`
-		Pressure struct {
-			MmHgAtm int `json:"mm_hg_atm"`
-		} `json:"pressure"`
-	} `json:"data"`
-	Jsonapi struct {
-		Version string `json:"version"`
-	} `json:"jsonapi"`
-	Meta struct {
-		Status     bool `json:"status"`
-		StatusCode int  `json:"status_code"`
-	} `json:"meta"`
+type Notification struct {
+	ChatID  int `json:"chatid"`
+	WeekDay int `json:"weekday"`
+	Hour    int `json:"hour"`
 }
 type TodaysWeather struct {
 	Data []struct {
@@ -268,7 +178,8 @@ func CheckIfCityIsReal(cityName string) (City, bool) {
 	var city City
 	cityLocationUrl := fmt.Sprintf("http://api.openweathermap.org/geo/1.0/direct?q=%v,643&appid=%v", cityName, ApiTokens.CityCoordsToken) // получение координат по городу
 	cityReq, err := http.NewRequest("GET", cityLocationUrl, nil)
-	if err != nil || len(city) == 0 {
+	fmt.Print(cityLocationUrl)
+	if err != nil {
 		return city, true
 	}
 	cityResponse, err := http.DefaultClient.Do(cityReq)
@@ -277,8 +188,9 @@ func CheckIfCityIsReal(cityName string) (City, bool) {
 	CheckForError(err)
 	err = json.Unmarshal(cityBody, &city)
 	CheckForError(err)
-	fmt.Print(city[0])
-	fmt.Print(cityName)
+	if len(city) == 0 {
+		return city, true
+	}
 	if city[0].LocalNames.Ru != cityName {
 		return city, true
 	}
